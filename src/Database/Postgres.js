@@ -2,7 +2,9 @@
 // module Database.Postgres
 
 var pg = require('pg');
-pg.types.setTypeParser(1082, function(v){ return v;})
+// https://github.com/brianc/node-postgres/issues/285
+// Just treating Date as a string, instead of as an object, makes parsing/serializing dates do what we want
+pg.types.setTypeParser(1082, function(v){ return String(v);})
 
 exports["connect'"] = function (conString) {
   return function(success, error) {
