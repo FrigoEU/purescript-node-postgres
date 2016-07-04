@@ -3,8 +3,10 @@
 
 var pg = require('pg');
 // https://github.com/brianc/node-postgres/issues/285
-// Just treating Date as a string, instead of as an object, makes parsing/serializing dates do what we want
-pg.types.setTypeParser(1082, function(v){ return String(v);})
+// Treating anything but base types as a string so we can do the deserializing in PS via fromSql
+pg.types.setTypeParser(1082, function(v){ return String(v); }); // date
+pg.types.setTypeParser(1083, function(v){ return String(v); }); // time
+pg.types.setTypeParser(1114, function(v){ return String(v); }); // timestamp
 
 exports["connect'"] = function (conString) {
   return function(success, error) {

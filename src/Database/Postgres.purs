@@ -17,20 +17,18 @@ module Database.Postgres
   ) where
 
 import Prelude
-import Control.Monad.Eff (Eff)
-import Data.Either (either)
-import Data.Function.Uncurried (Fn2(), runFn2)
-import Data.Array ((!!))
-import Data.Foreign (Foreign, ForeignError)
-import Data.Foreign.Class (class IsForeign, read)
-import Data.Maybe (Maybe(Just, Nothing), maybe)
 import Control.Monad.Aff (Aff, finally)
+import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (throwError)
+import Data.Array ((!!))
+import Data.Either (either)
+import Data.Foreign (Foreign, ForeignError)
+import Data.Function.Uncurried (Fn2, runFn2)
+import Data.Maybe (Maybe(Just, Nothing), maybe)
 import Data.Traversable (sequence)
-
-import Database.Postgres.SqlValue (SqlValue)
+import Database.Postgres.SqlValue (fromSql, class IsSqlValue, SqlValue)
 
 newtype Query a = Query String
 
@@ -71,45 +69,45 @@ execute_ (Query sql) client = void $ runQuery_ sql client
 
 -- | Runs a query and returns all results.
 query :: forall eff a
-  . (IsForeign a)
+  . (IsSqlValue a)
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Array a)
 query (Query sql) params client = do
   rows <- runQuery sql params client
-  either liftError pure (sequence $ read <$> rows)
+  either liftError pure (sequence $ fromSql <$> rows)
 
 -- | Just like `query` but does not make any param replacement
-query_ :: forall eff a. (IsForeign a) => Query a -> Client -> Aff (db :: DB | eff) (Array a)
+query_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Array a)
 query_ (Query sql) client = do
   rows <- runQuery_ sql client
-  either liftError pure (sequence $ read <$> rows)
+  either liftError pure (sequence $ fromSql <$> rows)
 
 -- | Runs a query and returns the first row, if any
 queryOne :: forall eff a
-  . (IsForeign a)
+  . (IsSqlValue a)
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne (Query sql) params client = do
   rows <- runQuery sql params client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ read <$> (rows !! 0)
+  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (rows !! 0)
 
 -- | Just like `queryOne` but does not make any param replacement
-queryOne_ :: forall eff a. (IsForeign a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
+queryOne_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne_ (Query sql) client = do
   rows <- runQuery_ sql client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ read <$> (rows !! 0)
+  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (rows !! 0)
 
 -- | Runs a query and returns a single value, if any.
 queryValue :: forall eff a
-  . (IsForeign a)
+  . (IsSqlValue a)
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryValue (Query sql) params client = do
   val <- runQueryValue sql params client
-  pure $ either (const Nothing) Just (read val)
+  pure $ either (const Nothing) Just (fromSql val)
 
 -- | Just like `queryValue` but does not make any param replacement
-queryValue_ :: forall eff a. (IsForeign a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
+queryValue_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryValue_ (Query sql) client = do
   val <- runQueryValue_ sql client
-  either liftError (pure <<< Just) $ read val
+  either liftError (pure <<< Just) $ fromSql val
 
 -- | Connects to the database, calls the provided function with the client
 -- | and returns the results.
