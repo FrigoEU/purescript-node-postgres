@@ -13,6 +13,7 @@ import Data.Either (Either(Right, Left))
 import Data.Enum (toEnum, fromEnum)
 import Data.Foreign (ForeignError(TypeMismatch), Foreign, F)
 import Data.Foreign.Class (read)
+import Data.Foreign.Index (class Index, ix, (!))
 import Data.Foreign.Null (readNull, Null, unNull)
 import Data.Int (fromString, toNumber)
 import Data.Maybe (maybe, Maybe)
@@ -104,3 +105,6 @@ zeroPad i = show i
 
 parseInt :: String -> F Int
 parseInt i = maybe (Left $ TypeMismatch "Expected Int" i) Right $ fromString i
+
+readSqlProp :: forall a b. (Index b, IsSqlValue a) => b -> Foreign -> Either ForeignError a
+readSqlProp prop value = value ! prop >>= fromSql
