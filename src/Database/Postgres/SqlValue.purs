@@ -3,6 +3,7 @@ module Database.Postgres.SqlValue
   , class IsSqlValue
   , toSql
   , fromSql
+  , readSqlProp
   ) where
 
 import Prelude
