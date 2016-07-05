@@ -71,7 +71,7 @@ dateToString d = show (fromEnum (year d)) <> "-"
 
 dateFromString :: String -> Either ForeignError Date
 dateFromString dstr = do
-  let dsplit = split dstr "-"
+  let dsplit = split "-" dstr
   ys <- maybe (Left $ TypeMismatch "Expected Year" "Didn't find Year string") Right $ index dsplit 0
   y :: Year <- parseInt ys >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Year" ys) Right)
   ms <- maybe (Left $ TypeMismatch "Expected Month" "Didn't find Month string") Right $ index dsplit 1
@@ -91,7 +91,7 @@ timeToString t = zeroPad (fromEnum (hour t)) <> ":"
 
 timeFromString :: String -> Either ForeignError Time
 timeFromString tstr = do
-  let tsplit = split tstr ":"
+  let tsplit = split ":" tstr
   hs <- maybe (Left $ TypeMismatch "Expected Hour" "Didn't find Hour string") Right $ index tsplit 0
   h :: Hour <- parseInt hs >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Hour" hs) Right)
   ms <- maybe (Left $ TypeMismatch "Expected Minutes" "Didn't find Minutes string") Right $ index tsplit 1
