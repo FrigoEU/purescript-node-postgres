@@ -41,6 +41,10 @@ instance isSqlValueInt :: IsSqlValue Int where
   toSql = unsafeCoerce <<< toNumber
   fromSql = read
 
+instance isSqlValueBoolean :: IsSqlValue Boolean where
+  toSql = unsafeCoerce
+  fromSql = read
+
 instance isSqlValueMaybe :: (IsSqlValue a) => IsSqlValue (Maybe a) where
   toSql = unsafeCoerce <<< toNullable <<< (toSql <$> _)
   fromSql s = unNull <$> (readNull fromSql s :: F (Null a))
