@@ -14,6 +14,7 @@ module Database.Postgres
   , queryOne, queryOne_
   , withConnection
   , withClient
+  , withClient'
   ) where
 
 import Prelude
@@ -126,6 +127,12 @@ withClient :: forall eff a
   -> (Client -> Aff (db :: DB | eff) a)
   -> Aff (db :: DB | eff) a
 withClient info p = runFn2 _withClient (mkConnectionString info) p
+
+withClient' :: forall eff a
+  . ConnectionString
+  -> (Client -> Aff ( db :: DB | a) eff)
+  -> Aff ( db :: DB | a) eff
+withClient' = runFn2 _withClient
 
 liftError :: forall e a. ForeignError -> Aff e a
 liftError err = throwError $ error (show err)
