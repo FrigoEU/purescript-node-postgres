@@ -100,3 +100,17 @@ exports.end = function (client) {
 exports.disconnect = function () {
   pg.end();
 }
+
+exports.isObjectWithAllNulls = function(fn){
+  var keys, i, acc;
+  if (typeof fn === "object"){
+    keys = Object.keys(fn);
+    acc = true;
+    for (i = 0; acc && i < keys.length; i++){
+      if (fn[keys[i]] !== null){ acc = false; }
+    }
+    return acc;
+  } else {
+    return false;
+  }
+};

@@ -88,13 +88,19 @@ queryOne :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne (Query sql) params client = do
   rows <- runQuery sql params client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (rows !! 0)
+  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (getFirstRealRow rows)
+
+foreign import isObjectWithAllNulls :: Foreign -> Boolean
+getFirstRealRow :: Array Foreign -> Maybe Foreign
+getFirstRealRow rows =
+    (rows !! 0) >>= \r -> if isObjectWithAllNulls r then Nothing else Just r
+
 
 -- | Just like `queryOne` but does not make any param replacement
 queryOne_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne_ (Query sql) client = do
   rows <- runQuery_ sql client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (rows !! 0)
+  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (getFirstRealRow rows)
 
 -- | Runs a query and returns a single value, if any.
 queryValue :: forall eff a
