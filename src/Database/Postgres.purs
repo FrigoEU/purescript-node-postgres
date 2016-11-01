@@ -23,11 +23,14 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (throwError)
+import Control.Monad.Except (runExcept)
 import Data.Array ((!!))
 import Data.Either (either)
 import Data.Foreign (Foreign, ForeignError)
 import Data.Function.Uncurried (Fn2, runFn2)
 import Data.Maybe (Maybe(Just, Nothing), maybe)
+import Data.Newtype (unwrap)
+import Data.NonEmpty (head)
 import Data.Traversable (sequence)
 import Database.Postgres.SqlValue (fromSql, class IsSqlValue, SqlValue)
 
@@ -74,13 +77,13 @@ query :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Array a)
 query (Query sql) params client = do
   rows <- runQuery sql params client
-  either liftError pure (sequence $ fromSql <$> rows)
+  either (unwrap >>> head >>> liftError) pure (runExcept $ sequence $ fromSql <$> rows) -- I suppose the only thing I can do here is take the first error?
 
 -- | Just like `query` but does not make any param replacement
 query_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Array a)
 query_ (Query sql) client = do
   rows <- runQuery_ sql client
-  either liftError pure (sequence $ fromSql <$> rows)
+  either (unwrap >>> head >>> liftError) pure (runExcept $ sequence $ fromSql <$> rows)
 
 -- | Runs a query and returns the first row, if any
 queryOne :: forall eff a
@@ -88,7 +91,7 @@ queryOne :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne (Query sql) params client = do
   rows <- runQuery sql params client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (getFirstRealRow rows)
+  maybe (pure Nothing) (either (unwrap >>> head >>> liftError) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow rows)
 
 foreign import isObjectWithAllNulls :: Foreign -> Boolean
 getFirstRealRow :: Array Foreign -> Maybe Foreign
@@ -100,7 +103,7 @@ getFirstRealRow rows =
 queryOne_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne_ (Query sql) client = do
   rows <- runQuery_ sql client
-  maybe (pure Nothing) (either liftError (pure <<< Just)) $ fromSql <$> (getFirstRealRow rows)
+  maybe (pure Nothing) (either (unwrap >>> head >>> liftError) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow rows)
 
 -- | Runs a query and returns a single value, if any.
 queryValue :: forall eff a
@@ -108,13 +111,13 @@ queryValue :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryValue (Query sql) params client = do
   val <- runQueryValue sql params client
-  pure $ either (const Nothing) Just (fromSql val)
+  pure $ either (const Nothing) Just (runExcept $ fromSql val)
 
 -- | Just like `queryValue` but does not make any param replacement
 queryValue_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryValue_ (Query sql) client = do
   val <- runQueryValue_ sql client
-  either liftError (pure <<< Just) $ fromSql val
+  either (unwrap >>> head >>> liftError) pure $ runExcept $ fromSql val
 
 -- | Connects to the database, calls the provided function with the client
 -- | and returns the results.

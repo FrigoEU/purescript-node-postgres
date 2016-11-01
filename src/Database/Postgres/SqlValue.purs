@@ -7,19 +7,20 @@ module Database.Postgres.SqlValue
   ) where
 
 import Prelude
-import Data.Array (index, (!!))
+import Control.Monad.Except (except)
+import Data.Array ((!!))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
 import Data.Either (Either(Right, Left))
 import Data.Enum (toEnum, fromEnum)
-import Data.Foreign (ForeignError(TypeMismatch), Foreign, F)
+import Data.Foreign (fail, ForeignError(TypeMismatch), Foreign, F)
 import Data.Foreign.Class (read)
 import Data.Foreign.Index (class Index, (!))
 import Data.Foreign.Null (readNull, Null, unNull)
 import Data.Int (fromString, toNumber)
 import Data.Maybe (maybe, Maybe)
 import Data.Nullable (toNullable)
-import Data.String (split)
+import Data.String (Pattern(Pattern), split)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -53,11 +54,11 @@ instance isSqlValueDateTime :: IsSqlValue DateTime where
   toSql (DateTime d t) = toSql (dateToString d <> " " <> timeToString t)
 
   fromSql o = (read o :: F String) >>= parse
-    where 
+    where
       parse str = do
-        let dts = split " " str
-        ds <- maybe (Left $ TypeMismatch "Expected Datetime" "Didn't find Date component") Right $ index dts 0
-        ts <- maybe (Left $ TypeMismatch "Expected Datetime" "Didn't find Time component") Right $ index dts 1
+        let dts = split (Pattern " ") str
+        ds <- maybe (fail $ TypeMismatch "Expected Datetime" "Didn't find Date component") pure (dts !! 0)
+        ts <- maybe (fail $ TypeMismatch "Expected Datetime" "Didn't find Time component") pure (dts !! 1)
 
         d :: Date <- dateFromString ds
         t :: Time <- timeFromString ts
@@ -73,15 +74,15 @@ dateToString d = show (fromEnum (year d)) <> "-"
                  <> zeroPad (fromEnum (month d)) <> "-"
                  <> zeroPad (fromEnum (day d))
 
-dateFromString :: String -> Either ForeignError Date
+dateFromString :: String -> F Date
 dateFromString dstr = do
-  let dsplit = split "-" dstr
-  ys <- maybe (Left $ TypeMismatch "Expected Year" "Didn't find Year string") Right $ index dsplit 0
-  y :: Year <- parseInt ys >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Year" ys) Right)
-  ms <- maybe (Left $ TypeMismatch "Expected Month" "Didn't find Month string") Right $ index dsplit 1
-  m :: Month <- parseInt ms >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Month" ms) Right)
-  dateS <- maybe (Left $ TypeMismatch "Expected Day" "Didn't find Day string") Right $ index dsplit 2
-  date :: Day <- parseInt dateS >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Day" dateS) Right)
+  let dsplit = split (Pattern "-") dstr
+  ys <- maybe (fail $ TypeMismatch "Expected Year" "Didn't find Year string") pure (dsplit !! 0)
+  y :: Year <- parseInt ys >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Year" ys) pure)
+  ms <- maybe (fail $ TypeMismatch "Expected Month" "Didn't find Month string") pure (dsplit !! 1)
+  m :: Month <- parseInt ms >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Month" ms) pure)
+  dateS <- maybe (fail $ TypeMismatch "Expected Day" "Didn't find Day string") pure (dsplit !! 2)
+  date :: Day <- parseInt dateS >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Day" dateS) pure)
   pure $ canonicalDate y m date
 
 instance isSqlValueTime :: IsSqlValue Time where
@@ -93,15 +94,15 @@ timeToString t = zeroPad (fromEnum (hour t)) <> ":"
                  <> zeroPad (fromEnum (minute t)) <> ":"
                  <> zeroPad (fromEnum (second t))
 
-timeFromString :: String -> Either ForeignError Time
+timeFromString :: String -> F Time
 timeFromString tstr = do
-  let tsplit = split ":" tstr
-  hs <- maybe (Left $ TypeMismatch "Expected Hour" "Didn't find Hour string") Right $ index tsplit 0
-  h :: Hour <- parseInt hs >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Hour" hs) Right)
-  ms <- maybe (Left $ TypeMismatch "Expected Minutes" "Didn't find Minutes string") Right $ index tsplit 1
-  m :: Minute <- parseInt ms >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Minutes" ms) Right)
-  ss <- maybe (Left $ TypeMismatch "Expected Seconds" "Didn't find Seconds string") Right $ index tsplit 2
-  s :: Second <- parseInt ss >>= (toEnum >>> maybe (Left $ TypeMismatch "Expected Seconds" ss) Right)
+  let tsplit = split (Pattern ":") tstr
+  hs <- maybe (fail $ TypeMismatch "Expected Hour" "Didn't find Hour string") pure (tsplit !! 0)
+  h :: Hour <- parseInt hs >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Hour" hs) pure)
+  ms <- maybe (fail $ TypeMismatch "Expected Minutes" "Didn't find Minutes string") pure (tsplit !! 1)
+  m :: Minute <- parseInt ms >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Minutes" ms) pure)
+  ss <- maybe (fail $ TypeMismatch "Expected Seconds" "Didn't find Seconds string") pure (tsplit !! 2)
+  s :: Second <- parseInt ss >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Seconds" ss) pure)
   pure $ Time h m s bottom
 
 zeroPad :: Int -> String
@@ -109,7 +110,7 @@ zeroPad i | i < 10 = "0" <> (show i)
 zeroPad i = show i
 
 parseInt :: String -> F Int
-parseInt i = maybe (Left $ TypeMismatch "Expected Int" i) Right $ fromString i
+parseInt i = except $ maybe (Left $ pure $ TypeMismatch "Expected Int" i) Right $ fromString i
 
-readSqlProp :: forall a b. (Index b, IsSqlValue a) => b -> Foreign -> Either ForeignError a
+readSqlProp :: forall a b. (Index b, IsSqlValue a) => b -> Foreign -> F a
 readSqlProp prop value = value ! prop >>= fromSql
