@@ -11,7 +11,7 @@ import Control.Monad.Except (except)
 import Data.Array ((!!))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
-import Data.Either (Either(Right, Left))
+import Data.Either (Either(Right, Left), fromRight)
 import Data.Enum (toEnum, fromEnum)
 import Data.Foreign (fail, ForeignError(TypeMismatch), Foreign, F)
 import Data.Foreign.Class (read)
@@ -21,7 +21,11 @@ import Data.Int (fromString, toNumber)
 import Data.Maybe (maybe, Maybe)
 import Data.Nullable (toNullable)
 import Data.String (Pattern(Pattern), split)
+import Data.String.Regex (regex)
+import Data.String.Regex (split) as R
+import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
+import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data SqlValue :: *
@@ -96,7 +100,7 @@ timeToString t = zeroPad (fromEnum (hour t)) <> ":"
 
 timeFromString :: String -> F Time
 timeFromString tstr = do
-  let tsplit = split (Pattern ":") tstr
+  let tsplit = R.split (unsafePartial (fromRight (regex "[:\\.]" (global <> ignoreCase)))) tstr
   hs <- maybe (fail $ TypeMismatch "Expected Hour" "Didn't find Hour string") pure (tsplit !! 0)
   h :: Hour <- parseInt hs >>= (toEnum >>> maybe (fail $ TypeMismatch "Expected Hour" hs) pure)
   ms <- maybe (fail $ TypeMismatch "Expected Minutes" "Didn't find Minutes string") pure (tsplit !! 1)
