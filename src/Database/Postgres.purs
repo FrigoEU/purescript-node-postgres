@@ -48,6 +48,7 @@ type ConnectionInfo =
   , port :: Int
   , user :: String
   , password :: String
+  , ssl :: Boolean
   }
 
 mkConnectionString :: ConnectionInfo -> ConnectionString
@@ -58,6 +59,7 @@ mkConnectionString ci =
   <> ci.host <> ":"
   <> show ci.port <> "/"
   <> ci.db
+  <> "?ssl=" <> show ci.ssl
 
 -- | Makes a connection to the database.
 connect :: forall eff. ConnectionInfo -> Aff (db :: DB | eff) Client
