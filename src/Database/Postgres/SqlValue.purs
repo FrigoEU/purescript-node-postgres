@@ -13,7 +13,7 @@ import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
 import Data.Either (Either(Right, Left), fromRight)
 import Data.Enum (toEnum, fromEnum)
-import Data.Foreign (fail, ForeignError(TypeMismatch), Foreign, F)
+import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray)
 import Data.Foreign.Class (read)
 import Data.Foreign.Index (class Index, (!))
 import Data.Foreign.Null (readNull, Null, unNull)
@@ -25,6 +25,7 @@ import Data.String.Regex (regex)
 import Data.String.Regex (split) as R
 import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
+import Data.Traversable (traverse)
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -53,6 +54,11 @@ instance isSqlValueBoolean :: IsSqlValue Boolean where
 instance isSqlValueMaybe :: (IsSqlValue a) => IsSqlValue (Maybe a) where
   toSql = unsafeCoerce <<< toNullable <<< (toSql <$> _)
   fromSql s = unNull <$> (readNull fromSql s :: F (Null a))
+
+instance isSqlValueArray :: (IsSqlValue a) => IsSqlValue (Array a) where
+  toSql = unsafeCoerce <<< (toSql <$> _)
+  fromSql s = if isArray s then traverse fromSql (unsafeCoerce s :: Array Foreign)
+                           else (fail $ TypeMismatch "Expected array" "Didn't find array")
 
 instance isSqlValueDateTime :: IsSqlValue DateTime where
   toSql (DateTime d t) = toSql (dateToString d <> " " <> timeToString t)
