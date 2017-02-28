@@ -35,6 +35,7 @@ import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
 import Data.Time.Duration (Hours(..), Minutes(..))
 import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -95,6 +96,11 @@ instance isSqlValueMinutes :: IsSqlValue Minutes where
 instance isSqlValueHours :: IsSqlValue Hours where
   toSql (Hours m) = toSql m
   fromSql ds = read ds <#> Hours
+
+instance isSqlValueTuple :: (EncodeJson a, DecodeJson a, EncodeJson b, DecodeJson b) =>
+                            IsSqlValue (Tuple a b) where
+  toSql = encodeJsonInSql
+  fromSql = decodeJsonFromSql
 
 dateToString :: Date -> String
 dateToString d = show (fromEnum (year d)) <> "-"
