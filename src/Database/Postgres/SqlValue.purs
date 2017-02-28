@@ -4,6 +4,8 @@ module Database.Postgres.SqlValue
   , toSql
   , fromSql
   , readSqlProp
+  , encodeJsonInSql
+  , decodeJsonFromSql
   ) where
 
 import Prelude
