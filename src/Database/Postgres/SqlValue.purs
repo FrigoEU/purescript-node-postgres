@@ -15,12 +15,12 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array ((!!))
+import Data.Array ((!!), (:))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
 import Data.Either (Either(Right, Left), either, fromRight)
 import Data.Enum (toEnum, fromEnum)
-import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray)
+import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray, unsafeFromForeign)
 import Data.Foreign.Class (read)
 import Data.Foreign.Index (class Index, (!))
 import Data.Foreign.Null (readNull, Null, unNull)
@@ -97,10 +97,25 @@ instance isSqlValueHours :: IsSqlValue Hours where
   toSql (Hours m) = toSql m
   fromSql ds = read ds <#> Hours
 
-instance isSqlValueTuple :: (EncodeJson a, DecodeJson a, EncodeJson b, DecodeJson b) =>
+instance isSqlValueSqlValue :: IsSqlValue SqlValue where
+  toSql = id
+  fromSql = unsafeCoerce >>> pure
+
+instance isSqlValueForeign :: IsSqlValue Foreign where
+  toSql = unsafeCoerce
+  fromSql = pure
+
+unsafeForeignToSqlValue :: Foreign -> SqlValue
+unsafeForeignToSqlValue = unsafeCoerce
+
+instance isSqlValueTuple :: (IsSqlValue a, IsSqlValue b) =>
                             IsSqlValue (Tuple a b) where
-  toSql = encodeJsonInSql
-  fromSql = decodeJsonFromSql
+  toSql (Tuple a b) = toSql [toSql a, toSql b]
+  fromSql s = do
+      arr <- fromSql s :: F (Array Foreign)
+      a <- maybe (fail $ ForeignError "Expected First element of tuple") fromSql (arr !! 0)
+      b <- maybe (fail $ ForeignError "Expected Second element of tuple") fromSql (arr !! 1)
+      pure (Tuple a b)
 
 dateToString :: Date -> String
 dateToString d = show (fromEnum (year d)) <> "-"
