@@ -80,8 +80,13 @@ instance isSqlValueDate :: IsSqlValue Date where
   toSql = toSql <<< dateToString
   fromSql ds = read ds >>= dateFromString
 
-derive newtype instance isSqlValueMinutes :: IsSqlValue Minutes
-derive newtype instance isSqlValueHours :: IsSqlValue Hours
+instance isSqlValueMinutes :: IsSqlValue Minutes where
+  toSql (Minutes m) = toSql m
+  fromSql ds = read ds <#> Minutes
+
+instance isSqlValueHours :: IsSqlValue Hours where
+  toSql (Hours m) = toSql m
+  fromSql ds = read ds <#> Hours
 
 dateToString :: Date -> String
 dateToString d = show (fromEnum (year d)) <> "-"
