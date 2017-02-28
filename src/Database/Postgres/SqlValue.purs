@@ -25,6 +25,7 @@ import Data.String.Regex (regex)
 import Data.String.Regex (split) as R
 import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
+import Data.Time.Duration (Hours(..), Minutes(..))
 import Data.Traversable (traverse)
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
@@ -78,6 +79,9 @@ instance isSqlValueDateTime :: IsSqlValue DateTime where
 instance isSqlValueDate :: IsSqlValue Date where
   toSql = toSql <<< dateToString
   fromSql ds = read ds >>= dateFromString
+
+derive newtype instance isSqlValueMinutes :: IsSqlValue Minutes
+derive newtype instance isSqlValueHours :: IsSqlValue Hours
 
 dateToString :: Date -> String
 dateToString d = show (fromEnum (year d)) <> "-"
