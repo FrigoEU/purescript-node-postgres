@@ -7,17 +7,23 @@ module Database.Postgres.SqlValue
   ) where
 
 import Prelude
+import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (except)
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Parser (jsonParser)
 import Data.Array ((!!))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
-import Data.Either (Either(Right, Left), fromRight)
+import Data.Either (Either(Right, Left), either, fromRight)
 import Data.Enum (toEnum, fromEnum)
 import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray)
 import Data.Foreign.Class (read)
 import Data.Foreign.Index (class Index, (!))
 import Data.Foreign.Null (readNull, Null, unNull)
 import Data.Int (fromString, toNumber)
+import Data.List.NonEmpty (singleton)
 import Data.Maybe (maybe, Maybe)
 import Data.Nullable (toNullable)
 import Data.String (Pattern(Pattern), split)
@@ -133,3 +139,8 @@ parseInt i = except $ maybe (Left $ pure $ TypeMismatch "Expected Int" i) Right 
 
 readSqlProp :: forall a b. (Index b, IsSqlValue a) => b -> Foreign -> F a
 readSqlProp prop value = value ! prop >>= fromSql
+
+encodeJsonInSql :: forall a. (EncodeJson a) => a -> SqlValue
+encodeJsonInSql = encodeJson >>> stringify >>> toSql
+decodeJsonFromSql :: forall a. (DecodeJson a) => Foreign -> F a
+decodeJsonFromSql a = read a >>= \str -> either (ForeignError >>> singleton >>> throwError) pure (jsonParser str >>= decodeJson)
