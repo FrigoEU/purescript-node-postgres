@@ -62,11 +62,11 @@ instance isSqlValueBoolean :: IsSqlValue Boolean where
   fromSql = read
 
 instance isSqlValueMaybe :: (IsSqlValue a) => IsSqlValue (Maybe a) where
-  toSql = unsafeCoerce <<< toNullable <<< (toSql <$> _)
+  toSql as = unsafeCoerce (toNullable (toSql <$> as))
   fromSql s = unNull <$> (readNull fromSql s :: F (Null a))
 
 instance isSqlValueArray :: (IsSqlValue a) => IsSqlValue (Array a) where
-  toSql = unsafeCoerce <<< (toSql <$> _)
+  toSql as = unsafeCoerce (toSql <$> as)
   fromSql s = if isArray s then traverse fromSql (unsafeCoerce s :: Array Foreign)
                            else (fail $ TypeMismatch "Expected array" "Didn't find array")
 
