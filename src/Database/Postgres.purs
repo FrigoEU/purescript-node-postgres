@@ -19,7 +19,7 @@ module Database.Postgres
 
 import Prelude
 import Control.Monad.Aff (Aff, finally)
-import Control.Monad.Eff (Eff)
+import Control.Monad.Eff (Eff, kind Effect)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (throwError)
@@ -36,9 +36,9 @@ import Database.Postgres.SqlValue (fromSql, class IsSqlValue, SqlValue)
 
 newtype Query a = Query String
 
-foreign import data Client :: *
+foreign import data Client :: Type
 
-foreign import data DB :: !
+foreign import data DB :: Effect
 
 type ConnectionString = String
 

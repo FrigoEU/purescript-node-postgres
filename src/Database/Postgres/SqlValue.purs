@@ -20,13 +20,11 @@ import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
 import Data.Either (Either(Right, Left), either, fromRight)
 import Data.Enum (toEnum, fromEnum)
-import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray, unsafeFromForeign)
-import Data.Foreign.Class (read)
+import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray, readBoolean, readInt, readNull, readNumber, readString, unsafeFromForeign)
 import Data.Foreign.Index (class Index, (!))
-import Data.Foreign.Null (readNull, Null, unNull)
 import Data.Int (fromString, toNumber)
 import Data.List.NonEmpty (singleton)
-import Data.Maybe (maybe, Maybe)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Nullable (toNullable)
 import Data.String (Pattern(Pattern), split)
 import Data.String.Regex (regex)
@@ -34,12 +32,12 @@ import Data.String.Regex (split) as R
 import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
 import Data.Time.Duration (Hours(..), Minutes(..))
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 
-foreign import data SqlValue :: *
+foreign import data SqlValue :: Type
 
 class IsSqlValue a where
   toSql :: a -> SqlValue
@@ -47,23 +45,23 @@ class IsSqlValue a where
 
 instance isSqlValueString :: IsSqlValue String where
   toSql = unsafeCoerce
-  fromSql = read
+  fromSql = readString
 
 instance isSqlValueNumber :: IsSqlValue Number where
   toSql = unsafeCoerce
-  fromSql = read
+  fromSql = readNumber
 
 instance isSqlValueInt :: IsSqlValue Int where
   toSql = unsafeCoerce <<< toNumber
-  fromSql = read
+  fromSql = readInt
 
 instance isSqlValueBoolean :: IsSqlValue Boolean where
   toSql = unsafeCoerce
-  fromSql = read
+  fromSql = readBoolean
 
 instance isSqlValueMaybe :: (IsSqlValue a) => IsSqlValue (Maybe a) where
   toSql as = unsafeCoerce (toNullable (toSql <$> as))
-  fromSql s = unNull <$> (readNull fromSql s :: F (Null a))
+  fromSql = readNull >=> map fromSql >>> sequence
 
 instance isSqlValueArray :: (IsSqlValue a) => IsSqlValue (Array a) where
   toSql as = unsafeCoerce (toSql <$> as)
@@ -73,7 +71,7 @@ instance isSqlValueArray :: (IsSqlValue a) => IsSqlValue (Array a) where
 instance isSqlValueDateTime :: IsSqlValue DateTime where
   toSql (DateTime d t) = toSql (dateToString d <> " " <> timeToString t)
 
-  fromSql o = (read o :: F String) >>= parse
+  fromSql o = readString o >>= parse
     where
       parse str = do
         let dts = split (Pattern " ") str
@@ -87,15 +85,15 @@ instance isSqlValueDateTime :: IsSqlValue DateTime where
 
 instance isSqlValueDate :: IsSqlValue Date where
   toSql = toSql <<< dateToString
-  fromSql ds = read ds >>= dateFromString
+  fromSql ds = readString ds >>= dateFromString
 
 instance isSqlValueMinutes :: IsSqlValue Minutes where
   toSql (Minutes m) = toSql m
-  fromSql ds = read ds <#> Minutes
+  fromSql ds = readNumber ds <#> Minutes
 
 instance isSqlValueHours :: IsSqlValue Hours where
   toSql (Hours m) = toSql m
-  fromSql ds = read ds <#> Hours
+  fromSql ds = readNumber ds <#> Hours
 
 instance isSqlValueSqlValue :: IsSqlValue SqlValue where
   toSql = id
@@ -135,7 +133,7 @@ dateFromString dstr = do
 
 instance isSqlValueTime :: IsSqlValue Time where
   toSql = toSql <<< timeToString
-  fromSql ts = read ts >>= timeFromString
+  fromSql ts = readString ts >>= timeFromString
 
 timeToString :: Time -> String
 timeToString t = zeroPad (fromEnum (hour t)) <> ":"
@@ -160,10 +158,10 @@ zeroPad i = show i
 parseInt :: String -> F Int
 parseInt i = except $ maybe (Left $ pure $ TypeMismatch "Expected Int" i) Right $ fromString i
 
-readSqlProp :: forall a b. (Index b, IsSqlValue a) => b -> Foreign -> F a
+readSqlProp :: forall a b. (Index b) => (IsSqlValue a) => b -> Foreign -> F a
 readSqlProp prop value = value ! prop >>= fromSql
 
 encodeJsonInSql :: forall a. (EncodeJson a) => a -> SqlValue
 encodeJsonInSql = encodeJson >>> stringify >>> toSql
 decodeJsonFromSql :: forall a. (DecodeJson a) => Foreign -> F a
-decodeJsonFromSql a = read a >>= \str -> either (ForeignError >>> singleton >>> throwError) pure (jsonParser str >>= decodeJson)
+decodeJsonFromSql a = readString a >>= \str -> either (ForeignError >>> singleton >>> throwError) pure (jsonParser str >>= decodeJson)
