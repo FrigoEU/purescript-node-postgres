@@ -51,6 +51,11 @@ type ConnectionInfo =
   , ssl :: Boolean
   }
 
+foreign import data Field :: Type
+type RawResult = { rows :: Array Foreign
+                 , fields :: Array Field
+                 }
+
 mkConnectionString :: ConnectionInfo -> ConnectionString
 mkConnectionString ci =
     "postgres://"
@@ -73,27 +78,31 @@ execute (Query sql) params client = void $ runQuery sql params client
 execute_ :: forall eff a. Query a -> Client -> Aff (db :: DB | eff) Unit
 execute_ (Query sql) client = void $ runQuery_ sql client
 
+foreign import showDiagnostics :: Array Field -> String
+addDiagnostics res e = throwError $ error $ show e <> ". Fields: " <> showDiagnostics res.fields
+
 -- | Runs a query and returns all results.
 query :: forall eff a
   . (IsSqlValue a)
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Array a)
 query (Query sql) params client = do
-  rows <- runQuery sql params client
-  either (unwrap >>> head >>> liftError) pure (runExcept $ sequence $ fromSql <$> rows) -- I suppose the only thing I can do here is take the first error?
+  res <- runQuery sql params client
+  either (unwrap >>> head >>> addDiagnostics res) pure (runExcept $ sequence $ fromSql <$> res.rows)
+  -- I suppose the only thing I can do here is take the first error?
 
 -- | Just like `query` but does not make any param replacement
 query_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Array a)
 query_ (Query sql) client = do
-  rows <- runQuery_ sql client
-  either (unwrap >>> head >>> liftError) pure (runExcept $ sequence $ fromSql <$> rows)
+  res <- runQuery_ sql client
+  either (unwrap >>> head >>> addDiagnostics res) pure (runExcept $ sequence $ fromSql <$> res.rows)
 
 -- | Runs a query and returns the first row, if any
 queryOne :: forall eff a
   . (IsSqlValue a)
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne (Query sql) params client = do
-  rows <- runQuery sql params client
-  maybe (pure Nothing) (either (unwrap >>> head >>> liftError) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow rows)
+  res <- runQuery sql params client
+  maybe (pure Nothing) (either (unwrap >>> head >>> addDiagnostics res) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow res.rows)
 
 foreign import isObjectWithAllNulls :: Foreign -> Boolean
 getFirstRealRow :: Array Foreign -> Maybe Foreign
@@ -104,8 +113,8 @@ getFirstRealRow rows =
 -- | Just like `queryOne` but does not make any param replacement
 queryOne_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne_ (Query sql) client = do
-  rows <- runQuery_ sql client
-  maybe (pure Nothing) (either (unwrap >>> head >>> liftError) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow rows)
+  res <- runQuery_ sql client
+  maybe (pure Nothing) (either (unwrap >>> head >>> addDiagnostics res) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow res.rows)
 
 -- | Runs a query and returns a single value, if any.
 queryValue :: forall eff a
@@ -152,9 +161,9 @@ foreign import connect' :: forall eff. String -> Aff (db :: DB | eff) Client
 
 foreign import _withClient :: forall eff a. Fn2 ConnectionString (Client -> Aff (db :: DB | eff) a) (Aff (db :: DB | eff) a)
 
-foreign import runQuery_ :: forall eff. String -> Client -> Aff (db :: DB | eff) (Array Foreign)
+foreign import runQuery_ :: forall eff. String -> Client -> Aff (db :: DB | eff) RawResult
 
-foreign import runQuery :: forall eff. String -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Array Foreign)
+foreign import runQuery :: forall eff. String -> Array SqlValue -> Client -> Aff (db :: DB | eff) RawResult
 
 foreign import runQueryValue_ :: forall eff. String -> Client -> Aff (db :: DB | eff) Foreign
 

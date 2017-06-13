@@ -44,11 +44,8 @@ exports.runQuery_ = function (queryStr) {
   return function(client) {
     return function(success, error) {
       client.query(queryStr, function(err, result) {
-        if (err) {
-          error(err);
-        } else {
-          success(result.rows);
-        }
+        if (err) return error(err);
+        success(result);
       })
     };
   };
@@ -60,7 +57,7 @@ exports.runQuery = function (queryStr) {
       return function(success, error) {
         client.query(queryStr, params, function(err, result) {
           if (err) return error(err);
-          success(result.rows);
+          success(result);
         })
       };
     };
@@ -114,3 +111,7 @@ exports.isObjectWithAllNulls = function(fn){
     return false;
   }
 };
+
+exports.showDiagnostics(diag){
+  return JSON.stringify(diag);
+}
