@@ -18,14 +18,16 @@ module Database.Postgres
   ) where
 
 import Prelude
+
 import Control.Monad.Aff (Aff, finally)
 import Control.Monad.Eff (Eff, kind Effect)
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception (error)
+import Control.Monad.Eff.Exception (Error, error)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array ((!!))
-import Data.Either (either)
+import Data.Bifunctor (lmap)
+import Data.Either (Either, either)
 import Data.Foreign (Foreign, ForeignError)
 import Data.Function.Uncurried (Fn2, runFn2)
 import Data.Maybe (Maybe(Just, Nothing), maybe)
@@ -76,8 +78,13 @@ execute (Query sql) params client = void $ runQuery sql params client
 execute_ :: forall eff a. Query a -> Client -> Aff (db :: DB | eff) Unit
 execute_ (Query sql) client = void $ runQuery_ sql client
 
-foreign import showDiagnostics :: RawResult -> String
-addDiagnostics res e = throwError $ error $ show e <> "\n. Postgres Diagnostics: " <> showDiagnostics res
+foreign import showDiagnostics :: RawResult -> Foreign -> String
+
+processRowWithDiagnostics :: forall a. (IsSqlValue a) => RawResult -> Foreign -> Either Error a
+processRowWithDiagnostics res row = 
+  fromSql row # runExcept # lmap (unwrap >>> head >>> addDiagnostics)
+    where 
+      addDiagnostics e = error $ show e <> "\n. Postgres Diagnostics: " <> showDiagnostics res row
 
 -- | Runs a query and returns all results.
 query :: forall eff a
@@ -85,14 +92,14 @@ query :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Array a)
 query (Query sql) params client = do
   res <- runQuery sql params client
-  either (unwrap >>> head >>> addDiagnostics res) pure (runExcept $ sequence $ fromSql <$> res.rows)
+  either throwError pure (sequence $ processRowWithDiagnostics res <$> res.rows)
   -- I suppose the only thing I can do here is take the first error?
 
 -- | Just like `query` but does not make any param replacement
 query_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Array a)
 query_ (Query sql) client = do
   res <- runQuery_ sql client
-  either (unwrap >>> head >>> addDiagnostics res) pure (runExcept $ sequence $ fromSql <$> res.rows)
+  either throwError pure (sequence $ processRowWithDiagnostics res <$> res.rows)
 
 -- | Runs a query and returns the first row, if any
 queryOne :: forall eff a
@@ -100,7 +107,7 @@ queryOne :: forall eff a
   => Query a -> Array SqlValue -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne (Query sql) params client = do
   res <- runQuery sql params client
-  maybe (pure Nothing) (either (unwrap >>> head >>> addDiagnostics res) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow res.rows)
+  maybe (pure Nothing) (either throwError pure) $ processRowWithDiagnostics res <$> (getFirstRealRow res.rows)
 
 foreign import isObjectWithAllNulls :: Foreign -> Boolean
 getFirstRealRow :: Array Foreign -> Maybe Foreign
@@ -112,7 +119,7 @@ getFirstRealRow rows =
 queryOne_ :: forall eff a. (IsSqlValue a) => Query a -> Client -> Aff (db :: DB | eff) (Maybe a)
 queryOne_ (Query sql) client = do
   res <- runQuery_ sql client
-  maybe (pure Nothing) (either (unwrap >>> head >>> addDiagnostics res) pure) $ (runExcept <<< fromSql) <$> (getFirstRealRow res.rows)
+  maybe (pure Nothing) (either throwError pure) $ processRowWithDiagnostics res <$> (getFirstRealRow res.rows)
 
 -- | Runs a query and returns a single value, if any.
 queryValue :: forall eff a

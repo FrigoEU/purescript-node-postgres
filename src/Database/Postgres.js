@@ -113,5 +113,11 @@ exports.isObjectWithAllNulls = function(fn){
 };
 
 exports.showDiagnostics = function(rawResult){
-  return JSON.stringify(rawResult) + "\ncheck https://github.com/brianc/node-pg-types/blob/master/lib/textParsers.js for info on parsers";
+  function(row){
+    delete rawResult.rows;
+    return ["Problem row: " + JSON.stringify(row)]
+      .concat( _.map(rawResult.fields, function(f){return JSON.stringify(f)}))
+      .concat(["check https://github.com/brianc/node-pg-types/blob/master/lib/textParsers.js for info on parsers"])
+      .join("\n");
+  }
 };
