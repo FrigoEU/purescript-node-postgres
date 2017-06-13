@@ -36,7 +36,8 @@
     "purescript-datetime": "^3.0.0",
     "purescript-unsafe-coerce": "^3.0.0",
     "purescript-nullable": "^3.0.0",
-    "purescript-argonaut-codecs": "^3.0.0"
+    "purescript-argonaut-codecs": "^3.0.0",
+    "purescript-numbers": "^5.0.0"
   },
   "devDependencies": {
     "purescript-spec": "^0.13.0",

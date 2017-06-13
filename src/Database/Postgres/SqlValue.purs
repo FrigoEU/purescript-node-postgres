@@ -15,16 +15,17 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array ((!!), (:))
+import Data.Array ((!!))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
 import Data.DateTime (DateTime(DateTime))
 import Data.Either (Either(Right, Left), either, fromRight)
 import Data.Enum (toEnum, fromEnum)
-import Data.Foreign (F, Foreign, ForeignError(..), fail, isArray, readBoolean, readInt, readNull, readNumber, readString, unsafeFromForeign)
+import Data.Foreign (F, Foreign, ForeignError(ForeignError, TypeMismatch), fail, isArray, readBoolean, readInt, readNull, readNumber, readString)
 import Data.Foreign.Index (class Index, (!))
 import Data.Int (fromString, toNumber)
+import Data.Number (fromString) as N
 import Data.List.NonEmpty (singleton)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe, maybe)
 import Data.Nullable (toNullable)
 import Data.String (Pattern(Pattern), split)
 import Data.String.Regex (regex)
@@ -89,7 +90,7 @@ instance isSqlValueDate :: IsSqlValue Date where
 
 instance isSqlValueMinutes :: IsSqlValue Minutes where
   toSql (Minutes m) = toSql m
-  fromSql ds = readNumber ds <#> Minutes
+  fromSql ds = readString ds >>= parseNumber <#> Minutes
 
 instance isSqlValueHours :: IsSqlValue Hours where
   toSql (Hours m) = toSql m
@@ -157,6 +158,9 @@ zeroPad i = show i
 
 parseInt :: String -> F Int
 parseInt i = except $ maybe (Left $ pure $ TypeMismatch "Expected Int" i) Right $ fromString i
+
+parseNumber :: String -> F Number
+parseNumber i = except $ maybe (Left $ pure $ TypeMismatch "Expected Number" i) Right $ N.fromString i
 
 readSqlProp :: forall a b. (Index b) => (IsSqlValue a) => b -> Foreign -> F a
 readSqlProp prop value = value ! prop >>= fromSql
