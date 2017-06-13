@@ -77,7 +77,7 @@ execute_ :: forall eff a. Query a -> Client -> Aff (db :: DB | eff) Unit
 execute_ (Query sql) client = void $ runQuery_ sql client
 
 foreign import showDiagnostics :: RawResult -> String
-addDiagnostics res e = throwError $ error $ show e <> ". Fields: " <> showDiagnostics res
+addDiagnostics res e = throwError $ error $ show e <> "\n. Postgres Diagnostics: " <> showDiagnostics res
 
 -- | Runs a query and returns all results.
 query :: forall eff a
