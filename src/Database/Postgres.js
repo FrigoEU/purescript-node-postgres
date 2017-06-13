@@ -112,6 +112,6 @@ exports.isObjectWithAllNulls = function(fn){
   }
 };
 
-exports.showDiagnostics(rawResult){
+exports.showDiagnostics = function(rawResult){
   return JSON.stringify(rawResult);
-}
+};
