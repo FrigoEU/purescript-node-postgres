@@ -31,7 +31,7 @@
     "purescript-foreign": "^4.0.0",
     "purescript-foldable-traversable": "^3.0.0",
     "purescript-transformers": "^3.0.0",
-    "purescript-aff": "^3.0.0",
+    "purescript-aff": "^4.0.0",
     "purescript-integers": "^3.0.0",
     "purescript-datetime": "^3.0.0",
     "purescript-unsafe-coerce": "^3.0.0",
@@ -40,7 +40,7 @@
     "purescript-numbers": "^5.0.0"
   },
   "devDependencies": {
-    "purescript-spec": "^0.13.0",
+    "purescript-spec": "^2.0.0",
     "purescript-generics": "^4.0.0"
   }
 }

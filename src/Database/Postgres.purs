@@ -143,7 +143,7 @@ withConnection :: forall eff a
   -> Aff (db :: DB | eff) a
 withConnection info p = do
   client <- connect info
-  finally (p client) $ liftEff (end client)
+  finally (liftEff (end client)) (p client)
 
 -- | Takes a Client from the connection pool, runs the given function with
 -- | the client and returns the results.
