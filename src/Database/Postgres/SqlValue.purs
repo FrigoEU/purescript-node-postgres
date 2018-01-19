@@ -6,6 +6,8 @@ module Database.Postgres.SqlValue
   , readSqlProp
   , encodeJsonInSql
   , decodeJsonFromSql
+  , gEncodeJsonInSql
+  , gDecodeJsonFromSql
   ) where
 
 import Prelude
@@ -14,7 +16,9 @@ import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (except)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode.Generic (gDecodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
+import Data.Argonaut.Encode.Generic (gEncodeJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array ((!!))
 import Data.Date (Day, Month, Year, Date, canonicalDate, year, month, day)
@@ -23,6 +27,7 @@ import Data.Either (Either(Right, Left), either, fromRight)
 import Data.Enum (toEnum, fromEnum)
 import Data.Foreign (F, Foreign, ForeignError(ForeignError, TypeMismatch), fail, isArray, readBoolean, readInt, readNull, readNumber, readString)
 import Data.Foreign.Index (class Index, (!))
+import Data.Generic (class Generic)
 import Data.Int (fromString, toNumber)
 import Data.List.NonEmpty (singleton)
 import Data.Maybe (Maybe, maybe)
@@ -169,6 +174,11 @@ parseNumber i = except $ maybe (Left $ pure $ TypeMismatch "Expected Number" i) 
 
 readSqlProp :: forall a b. (Index b) => (IsSqlValue a) => b -> Foreign -> F a
 readSqlProp prop value = value ! prop >>= fromSql
+
+gEncodeJsonInSql :: forall a. (Generic a) => a -> SqlValue
+gEncodeJsonInSql = gEncodeJson >>> stringify >>> toSql
+gDecodeJsonFromSql :: forall a. (Generic a) => Foreign -> F a
+gDecodeJsonFromSql a = readString a >>= \str -> either (ForeignError >>> singleton >>> throwError) pure (jsonParser str >>= gDecodeJson)
 
 encodeJsonInSql :: forall a. (EncodeJson a) => a -> SqlValue
 encodeJsonInSql = encodeJson >>> stringify >>> toSql
