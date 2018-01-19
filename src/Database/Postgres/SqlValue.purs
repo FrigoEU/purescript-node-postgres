@@ -9,6 +9,7 @@ module Database.Postgres.SqlValue
   ) where
 
 import Prelude
+
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (except)
 import Data.Argonaut.Core (stringify)
@@ -23,16 +24,16 @@ import Data.Enum (toEnum, fromEnum)
 import Data.Foreign (F, Foreign, ForeignError(ForeignError, TypeMismatch), fail, isArray, readBoolean, readInt, readNull, readNumber, readString)
 import Data.Foreign.Index (class Index, (!))
 import Data.Int (fromString, toNumber)
-import Data.Number (fromString) as N
 import Data.List.NonEmpty (singleton)
 import Data.Maybe (Maybe, maybe)
 import Data.Nullable (toNullable)
+import Data.Number (fromString) as N
 import Data.String (Pattern(Pattern), split)
 import Data.String.Regex (regex)
 import Data.String.Regex (split) as R
 import Data.String.Regex.Flags (global, ignoreCase)
 import Data.Time (Second, Minute, Hour, Time(Time), second, minute, hour)
-import Data.Time.Duration (Hours(..), Minutes(..))
+import Data.Time.Duration (Hours(..), Milliseconds(..), Minutes(..))
 import Data.Traversable (sequence, traverse)
 import Data.Tuple (Tuple(..))
 import Partial.Unsafe (unsafePartial)
@@ -91,6 +92,10 @@ instance isSqlValueDate :: IsSqlValue Date where
 instance isSqlValueMinutes :: IsSqlValue Minutes where
   toSql (Minutes m) = toSql m
   fromSql ds = readString ds >>= parseNumber <#> Minutes
+
+instance isSqlValueMilliSeconds :: IsSqlValue Milliseconds where
+  toSql (Milliseconds m) = toSql m
+  fromSql ds = readString ds >>= parseNumber <#> Milliseconds
 
 instance isSqlValueHours :: IsSqlValue Hours where
   toSql (Hours m) = toSql m
