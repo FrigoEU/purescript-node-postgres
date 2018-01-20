@@ -51,14 +51,7 @@ foreign import data DB :: Effect
 
 type ConnectionString = String
 
-type ConnectionInfo =
-  { host :: String
-  , db :: String
-  , port :: Int
-  , user :: String
-  , password :: String
-  , ssl :: Boolean
-  }
+foreign import data ConnectionInfo :: Type
 
 connectionInfoFromString :: ConnectionString -> ConnectionInfo
 connectionInfoFromString s = unsafeCoerce { connectionString: s }
@@ -75,15 +68,16 @@ type ClientConfig =
 foreign import data Field :: Type
 type RawResult = { rows :: Array Foreign }
 
-mkConnectionString :: ConnectionInfo -> ConnectionString
-mkConnectionString ci =
-    "postgres://"
-  <> ci.user <> ":"
-  <> ci.password <> "@"
-  <> ci.host <> ":"
-  <> show ci.port <> "/"
-  <> ci.db
-  <> "?ssl=" <> show ci.ssl
+-- mkConnectionString :: ConnectionInfo -> ConnectionString
+-- mkConnectionString ci =
+--     "postgres://"
+--   <> ci.user <> ":"
+--   <> ci.password <> "@"
+--   <> ci.host <> ":"
+--   <> show ci.port <> "/"
+--   <> ci.db
+--   <> "?ssl=" <> show ci.ssl
+
 type PoolConfig =
   { connectionTimeoutMillis :: Int
   , idleTimeoutMillis :: Int
