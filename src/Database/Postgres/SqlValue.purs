@@ -56,7 +56,7 @@ instance isSqlValueString :: IsSqlValue String where
 
 instance isSqlValueNumber :: IsSqlValue Number where
   toSql = unsafeCoerce
-  fromSql = readNumber
+  fromSql = readString >=> parseNumber
 
 instance isSqlValueInt :: IsSqlValue Int where
   toSql = unsafeCoerce <<< toNumber
