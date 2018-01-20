@@ -54,6 +54,7 @@ instance isSqlValueString :: IsSqlValue String where
   toSql = unsafeCoerce
   fromSql = readString
 
+-- https://github.com/brianc/node-pg-types/issues/52
 instance isSqlValueNumber :: IsSqlValue Number where
   toSql = unsafeCoerce
   fromSql = readString >=> parseNumber
