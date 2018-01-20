@@ -77,7 +77,6 @@ instance isSqlValueArray :: (IsSqlValue a) => IsSqlValue (Array a) where
 
 instance isSqlValueDateTime :: IsSqlValue DateTime where
   toSql (DateTime d t) = toSql (dateToString d <> " " <> timeToString t)
-
   fromSql o = readString o >>= parse
     where
       parse str = do

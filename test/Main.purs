@@ -1,7 +1,9 @@
 module Test.Main where
 
 import Prelude
+
 import Control.Monad.Aff (Aff, apathize, attempt)
+import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Console (CONSOLE)
@@ -9,32 +11,39 @@ import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (throwError)
 import Data.Array (length)
 import Data.Date (canonicalDate)
-import Data.DateTime (DateTime(..))
 import Data.Date.Component (Month(..))
-import Data.Enum (toEnum)
-import Data.Time (Time(..))
+import Data.DateTime (DateTime(..))
 import Data.Either (either)
+import Data.Enum (toEnum)
 import Data.Foreign (Foreign)
+import Data.Foreign.Class (class Decode, decode)
+import Data.Foreign.Index (readProp)
+import Data.Generic (class Generic, gEq)
 import Data.JSDate (toDateTime)
 import Data.Maybe (Maybe(Nothing, Just), maybe)
+<<<<<<< HEAD
 import Data.Generic (class Generic, gEq)
 import Database.Postgres (DB, Query(Query), queryOne_, execute, execute_, withConnection, query, withClient, end, query_, connect, queryValue_, mkConnectionString)
+=======
+import Data.Time (Time(..))
+import Database.Postgres (DB, Query(Query), connect, end, execute, execute_,
+  query, queryOne_, queryValue_, query_, withClient, ClientConfig,
+  ConnectionInfo, connectionInfoFromConfig, defaultPoolConfig, mkPool, release)
+>>>>>>> v4.1.0^0
 import Database.Postgres.SqlValue (toSql)
 import Database.Postgres.Transaction (withTransaction)
-import Node.Process (PROCESS)
-
-import Unsafe.Coerce (unsafeCoerce)
-
 import Test.Spec (describe, it)
-import Test.Spec.Runner (run)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
+import Test.Spec.Runner (PROCESS, run)
+import Unsafe.Coerce (unsafeCoerce)
 
 data Artist = Artist
   { name :: String
   , year :: Int
   }
 
+<<<<<<< HEAD
 {-- connectionInfo :: { host :: String, db :: String, port :: Int, user :: String, password :: String } --}
 {-- connectionInfo = --}
 {--   { host: "localhost" --}
@@ -142,3 +151,145 @@ data Artist = Artist
 {--     n <- readProp "name" obj --}
 {--     y <- readProp "year" obj --}
 {--     pure $ Artist { name: n, year: y } --}
+=======
+clientConfig :: ClientConfig
+clientConfig =
+  { host: "localhost"
+  , database: "test"
+  , port: 5432
+  , user: "testuser"
+  , password: "test"
+  , ssl: false
+  }
+
+connectionInfo :: ConnectionInfo
+connectionInfo = connectionInfoFromConfig clientConfig defaultPoolConfig
+
+main :: forall eff.
+  Eff
+    ( console :: CONSOLE
+    , avar :: AVAR
+    , process :: PROCESS
+    , db :: DB
+    | eff
+    )
+    Unit
+main = run [consoleReporter] do
+  describe "withClient" do
+    it "Returns a client" do
+      pool <- liftEff $ mkPool connectionInfo
+      withClient pool $ \c -> do
+        execute_ (Query "delete from artist") c
+        execute_ (Query "insert into artist values ('Led Zeppelin', 1968)") c
+        execute_ (Query "insert into artist values ('Deep Purple', 1968)") c
+        let
+          q :: Query Int
+          q = Query "insert into artist values ('Fairport Convention', 1967) returning year"
+
+        year <- queryValue_ q c
+        year `shouldEqual` (Just 1967)
+
+        artists <- query_ (Query "select * from artist" :: Query Artist) c
+        length artists `shouldEqual` 3
+        liftEff $ end pool
+
+  describe "Low level API" do
+    it "Can be used to manage connections manually" do
+      pool <- liftEff $ mkPool connectionInfo
+      client <- connect pool
+      execute_ (Query "delete from artist") client
+      execute_ (Query "insert into artist values ('Led Zeppelin', 1968)") client
+
+      artists <- query_ (Query "select * from artist order by name desc" :: Query Artist) client
+      artists `shouldEqual` [Artist { name: "Led Zeppelin", year: 1968 }]
+
+      liftEff $ release client
+      liftEff $ end pool
+
+  describe "Error handling" do
+    it "When query cannot be converted to the requested data type we get an error" do
+      res <- attempt exampleError
+      either (const $ pure unit) (const $ fail "FAIL") res
+
+  describe "Query params" do
+    it "Select using a query param" do
+      pool <- liftEff $ mkPool connectionInfo
+      withClient pool $ \c -> do
+        execute_ (Query "delete from artist") c
+        execute_ (Query "insert into artist values ('Led Zeppelin', 1968)") c
+        execute_ (Query "insert into artist values ('Deep Purple', 1968)") c
+        execute_ (Query "insert into artist values ('Toto', 1977)") c
+        artists <- query (Query "select * from artist where name = $1" :: Query Artist) [toSql "Toto"] c
+        length artists `shouldEqual` 1
+
+        noRows <- query (Query "select * from artist where name = $1" :: Query Artist) [toSql "FAIL"] c
+        length noRows `shouldEqual` 0
+        liftEff $ end pool
+
+  describe "data types" do
+    it "datetimes can be inserted" do
+      pool <- liftEff $ mkPool connectionInfo
+      withClient pool \c -> do
+        execute_ (Query "delete from types") c
+        let date = canonicalDate <$> toEnum 2016 <*> Just January <*> toEnum 25
+            time = Time <$> toEnum 23 <*> toEnum 1 <*> toEnum 59 <*> toEnum 0
+            dt = DateTime <$> date <*> time
+        maybe (fail "Not a datetime") (\ts -> do
+          execute (Query "insert into types(timestamp_no_tz) VALUES ($1)") [toSql ts] c
+          ts' <- queryValue_ (Query "select timestamp_no_tz at time zone 'UTC' from types" :: Query Foreign) c
+          let res = unsafeCoerce <$> ts' >>= toDateTime
+          res `shouldEqual` (Just ts)
+        ) dt
+        liftEff $ end pool
+
+  describe "sql arrays as parameters" $
+    it "can be passed as a SqlValue" do
+      pool <- liftEff $ mkPool connectionInfo
+      withClient pool \c -> do
+        execute_ (Query "delete from artist") c
+        execute_ (Query "insert into artist values ('Zed Leppelin', 1967)") c
+        execute_ (Query "insert into artist values ('Led Zeppelin', 1968)") c
+        execute_ (Query "insert into artist values ('Deep Purple', 1969)") c
+        artists <- query (Query "select * from artist where year = any ($1)" :: Query Artist) [toSql [1968, 1969]] c
+        length artists `shouldEqual` 2
+        liftEff $ end pool
+
+  describe "transactions" do
+    it "does not commit after an error inside a transation" do
+      pool <- liftEff $ mkPool connectionInfo
+      withClient pool $ \c -> do
+        execute_ (Query "delete from artist") c
+        apathize $ tryInsert c
+        one <- queryOne_ (Query "select * from artist" :: Query Artist) c
+
+        one `shouldEqual` Nothing
+        liftEff $ end pool
+          where
+          tryInsert = withTransaction $ \c -> do
+            execute_ (Query "insert into artist values ('Not there', 1999)") c
+            throwError $ error "fail"
+
+exampleError :: forall eff. Aff (db :: DB | eff) (Maybe Artist)
+exampleError = do
+  pool <- liftEff $ mkPool connectionInfo
+  withClient pool $ \c -> do
+    execute_ (Query "delete from artist") c
+    execute_ (Query "insert into artist values ('Led Zeppelin', 1968)") c
+    result <- queryOne_ (Query "select year from artist") c
+    liftEff $ end pool
+    pure result
+
+instance artistShow :: Show Artist where
+  show (Artist p) = "Artist (" <> p.name <> ", " <> show p.year <> ")"
+
+derive instance genericArtist :: Generic Artist
+
+instance eqArtist :: Eq Artist where
+  eq = gEq
+
+instance artistIsForeign :: Decode Artist where
+  decode obj = do
+    n <- decode =<< readProp "name" obj
+    y <- decode =<< readProp "year" obj
+    pure $ Artist { name: n, year: y }
+>>>>>>> v4.1.0^0
